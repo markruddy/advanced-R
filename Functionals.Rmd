@@ -58,15 +58,124 @@ There are three ways to loop over a vector.
 2. Over numeric indices: `for (x in seq_along(xs))`
 3. Over names: `for (nm in names(xs))`
 
-Usually 1 is a bad choice: saving output usually is by exending a data structure (eg `res <- c(res, fun(x))`) is inefficient.
+Usually 1 is a bad choice: saving output usually is by exending a data structure - eg extending a vector `res <- c(res, fun(x))`), which is inefficient. Extending a vector requires R to copy all existing elements, the add to it. Better to create the space needed for output first, then fill it.
 
+eg
 
-
-```{r temp}
-trims <- c(0, 0.1, 0.2, 0.5)
-x <- rcauchy(1000)
-unlist(lapply(trims, function(trim) mean(x, trim = trim)))
+```{r index-for-loop-example}
+res <- numeric(length(xs))
+for (i in seq_along(xs)) {
+  res[i] <- sqrt(xs[i])
+}
 ```
+
+### Using `lapply()`
+
+Three basic ways:
+
+1. With elements: `lapply(xs, function(x) {})`
+2. With indices: `lapply(seq_along(xs), function(i) {})`
+3. With names: `lapply(names(xs), function(nm) {})`
+
+In most cases use case 1 - `lapply()` sorts out the output. 
+
+If the position or name of the element is needed, use cases 2 or 3.
+
+## Exercises
+
+1. Why are the following two invocations of `lapply()` equivalent?
+
+```{r Ex1-example}
+trims <- c(0, 0.1, 0.2, 0.5)
+x <- rcauchy(100)
+
+#a
+lapply(trims, function(trim) mean(x, trim = trim))
+
+#b
+lapply(trims, mean, x = x)
+```
+
+The second parameter of `lapply` can take a name of a function found via `match.fun`. Thus `lapply(trims, 'mean', x = x)` also works, even though Hadley doesn't mention that.
+
+`lapply` will then automatically apply the function from the second parameter to the first parameter.  Though, by default it will assume the first argument to `lapply` will be the first argument to the function unless you specify otherwise in the third argument of `lapply`.
+
+Here, mean takes three args: x, trim, and na.rm.  `lapply(trims, mean)` would do `mean(trims)` or `mean(x = trims)`.  But by specifying that `x = x`, lapply then knows that the x value for mean will be the x variable, and then passes trims as the second argument to `mean`.
+
+(From https://github.com/peterhurford/adv-r-book-solutions/blob/master/09_functionals/01_lapply/exercise1.r)
+
+
+2. The function below scales a vector so it falls in the range [0, 1]. How would you apply it to every column of a data frame? How would you apply it to every numeric column in a data frame?
+
+```{r Ex2-example}
+scale01 <- function(x) {
+  rng <- range(x, na.rm = TRUE)
+  (x - rng[1]) / (rng[2] - rng[1])
+}
+```
+
+
+```{r Ex2-answer}
+str(iris)
+names(iris)
+
+lapply(mtcars, scale01)
+# or with selection for numeric columns
+lapply(iris[sapply(iris, is.numeric)], scale01)
+```
+
+
+3. Use both for loops and lapply() to fit linear models to the mtcars using the formulas stored in this list:
+
+```{r Ex3-question}
+formulas <- list(
+  mpg ~ disp,
+  mpg ~ I(1 / disp),
+  mpg ~ disp + wt,
+  mpg ~ I(1 / disp) + wt
+)
+```
+
+```{r Ex3-answer} 
+
+# For loop
+fits1 <- vector("list", length = length(formulas))
+i <- 1
+for (formula in formulas) { fits1[[i]] <- lm(formula, data = mtcars); i <- i + 1 }
+fits1
+
+# lapply
+lapply(formulas, lm, data = mtcars)
+
+```
+
+
+
+4. Fit the model mpg ~ disp to each of the bootstrap replicates of mtcars in the list below by using a for loop and lapply(). Can you do it without an anonymous function?
+
+```{r Ex4-question}
+bootstraps <- lapply(1:10, function(x) {
+  rows <- sample(1:nrow(mtcars), rep = TRUE)
+  mtcars[rows, ]
+})
+
+# For loop
+mod1 <- vector("list", length = length(bootstraps))
+i <- 1
+for(boot in bootstraps) { 
+  result <- lm(boot$mpg ~ boot$disp)
+  mod1[[i]] <- result
+  i <- i+1
+  }
+mod1
+
+# lapply
+lapply(bootstraps
+```
+
+
+
+
 
 
 
