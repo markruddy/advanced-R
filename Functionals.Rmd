@@ -36,7 +36,7 @@ Functionals are often used as alternatives to 'for loops'.
 5. Many functionals have been written in C with performance in mind (although not always).
 
 
-## `lapply()`
+## lapply()
 
 See http://adv-r.had.co.nz/Functionals.html#lapply
 
@@ -69,7 +69,7 @@ for (i in seq_along(xs)) {
 }
 ```
 
-### Using `lapply()`
+### Using lapply()
 
 Three basic ways:
 
@@ -190,6 +190,55 @@ lapply(mod2, rsq)
 all.fits <- list(fits1,fits2,mod1,mod2)
 all.r2 <- lapply(all.fits, function(fit) lapply(fit, rsq))
 ```
+
+Clean up
+```{r}
+rm(list = ls())
+```
+
+
+## For loop functionals: friends of lapply()
+
+Common looping functions are *already implemented* in existing base functionals.
+
+### Vector output: `sapply` and `vapply`
+
+Both produce atomic vectors as outputs but `sapply` assumes output and so is more prone to errors of input is not as expected. `vapply` takes more arguments to control implementation and output.
+
+`sapply` is just `lapply` with the list converted to a vector.
+
+`vapply` is `lapply` with appropriate output (eg matrix) instead of a list.
+
+
+## Multiple outputs: `Map` (and `mapply`)
+
+These allow iteration over two lists at the same time, eg is calculating weighted means.
+
+`Map` takes a function as the first argument, cf `lapply` et al. 
+
+`Map` is the equivalent of `mapply` but with `simplify=FALSE`
+
+```{r test1}
+xs <- replicate(5, runif(10), simplify = FALSE)
+ws <- replicate(5, rpois(10, 5) + 1, simplify = FALSE)
+
+unlist(Map(weighted.mean, xs, ws))
+```
+
+## Bespoke functionals
+
+Try and spot the for loop structures wthin any novel problems encountered, relate them to existing functionals and make use these functionals in any new functions.
+
+
+## Parallelisation
+
+
+`parallel::mclapply` and `parallel::mcMap` are versions of `lapply` and `Map` that can use multiple cores. This is because each iteration with these functionals is independent of others, ie not order dependent.
+
+### Exercises
+
+
+
 
 
 
