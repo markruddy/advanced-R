@@ -1,0 +1,7 @@
+---
+title: "Functionals"
+author: "Mark Ruddy"
+date: "5 March 2017"
+output: html_document
+---
+
