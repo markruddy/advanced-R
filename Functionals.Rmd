@@ -102,7 +102,7 @@ The second parameter of `lapply` can take a name of a function found via `match.
 
 Here, mean takes three args: x, trim, and na.rm.  `lapply(trims, mean)` would do `mean(trims)` or `mean(x = trims)`.  But by specifying that `x = x`, lapply then knows that the x value for mean will be the x variable, and then passes trims as the second argument to `mean`.
 
-(From https://github.com/peterhurford/adv-r-book-solutions/blob/master/09_functionals/01_lapply/exercise1.r)
+(With reference to https://github.com/peterhurford/adv-r-book-solutions/blob/master/09_functionals/01_lapply/exercise1.r)
 
 
 2. The function below scales a vector so it falls in the range [0, 1]. How would you apply it to every column of a data frame? How would you apply it to every numeric column in a data frame?
@@ -145,7 +145,7 @@ for (formula in formulas) { fits1[[i]] <- lm(formula, data = mtcars); i <- i + 1
 fits1
 
 # lapply
-lapply(formulas, lm, data = mtcars)
+fits2 <- lapply(formulas, lm, data = mtcars)
 
 ```
 
@@ -158,21 +158,38 @@ bootstraps <- lapply(1:10, function(x) {
   rows <- sample(1:nrow(mtcars), rep = TRUE)
   mtcars[rows, ]
 })
+```
 
+```{r Ex4-answer}
 # For loop
 mod1 <- vector("list", length = length(bootstraps))
 i <- 1
 for(boot in bootstraps) { 
-  result <- lm(boot$mpg ~ boot$disp)
+  result <- lm(mpg ~ disp, data = boot)
   mod1[[i]] <- result
   i <- i+1
   }
 mod1
 
 # lapply
-lapply(bootstraps
+mod2 <- lapply(bootstraps, lm, formula = mpg ~ disp)
 ```
 
+
+5. For each model in the previous two exercises, extract R2 using the function below.
+
+```{r Ex5-questions}
+rsq <- function(mod) summary(mod)$r.squared
+```
+
+
+```{r Ex5-answer}
+lapply(mod2, rsq)
+
+# extract R2 for all
+all.fits <- list(fits1,fits2,mod1,mod2)
+all.r2 <- lapply(all.fits, function(fit) lapply(fit, rsq))
+```
 
 
 
