@@ -5,3 +5,78 @@ date: "5 March 2017"
 output: html_document
 ---
 
+```{r load-packages, include=FALSE}
+library(tidyverse)
+```
+
+## Functionals introduction
+
+Working through HW's Advanced-R tutorial on functionals: http://adv-r.had.co.nz/Functionals.html 
+
+A functional:
+
+> A function that takes a function as an input and returns a vector as output.
+
+eg.,
+
+```{r functional-example}
+randomise <- function(f) f(runif(1e3))
+glimpse(randomise(sum))
+```
+
+`lapply()`, `apply()` and `tapply()` are the most frequently use functionals.
+
+Functionals are often used as alternatives to 'for loops'. 
+
+1. For loops have a reputation for beign slow (although not always).
+2. Using a functional is more expressive than relying on a for loop.
+  * Each functional tailored to a specific task: know immediately why it's being used.
+3. Eliminates having to write boilerplate for for-loop and so concentrate on function being applies.
+4. Functionals reduce bugs (well tested) and are efficient.
+5. Many functionals have been written in C with performance in mind (although not always).
+
+
+## `lapply()`
+
+See http://adv-r.had.co.nz/Functionals.html#lapply
+
+`lapply()` 
+
+1. Takes a function and a list.
+2. Creates container for output.
+3. Applies function to each element in the list.
+4. Returns results as a list.
+
+It's written in C, is the simplest functional, and is a building block for many other functionals.
+
+
+### Looping patterns
+
+There are three ways to loop over a vector.
+
+1. Over elements: `for (x in xs)`
+2. Over numeric indices: `for (x in seq_along(xs))`
+3. Over names: `for (nm in names(xs))`
+
+Usually 1 is a bad choice: saving output usually is by exending a data structure (eg `res <- c(res, fun(x))`) is inefficient.
+
+
+
+```{r temp}
+trims <- c(0, 0.1, 0.2, 0.5)
+x <- rcauchy(1000)
+unlist(lapply(trims, function(trim) mean(x, trim = trim)))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
