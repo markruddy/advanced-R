@@ -85,7 +85,7 @@ If the position or name of the element is needed, use cases 2 or 3.
 
 1. Why are the following two invocations of `lapply()` equivalent?
 
-```{r Ex1-example}
+```{r Ex1-lapply}
 trims <- c(0, 0.1, 0.2, 0.5)
 x <- rcauchy(100)
 
@@ -107,7 +107,7 @@ Here, mean takes three args: x, trim, and na.rm.  `lapply(trims, mean)` would do
 
 2. The function below scales a vector so it falls in the range [0, 1]. How would you apply it to every column of a data frame? How would you apply it to every numeric column in a data frame?
 
-```{r Ex2-example}
+```{r Ex2-df-q}
 scale01 <- function(x) {
   rng <- range(x, na.rm = TRUE)
   (x - rng[1]) / (rng[2] - rng[1])
@@ -115,7 +115,7 @@ scale01 <- function(x) {
 ```
 
 
-```{r Ex2-answer}
+```{r Ex2-df-ans}
 str(iris)
 names(iris)
 
@@ -127,7 +127,7 @@ lapply(iris[sapply(iris, is.numeric)], scale01)
 
 3. Use both for loops and lapply() to fit linear models to the mtcars using the formulas stored in this list:
 
-```{r Ex3-question}
+```{r Ex3-loop-q}
 formulas <- list(
   mpg ~ disp,
   mpg ~ I(1 / disp),
@@ -136,7 +136,7 @@ formulas <- list(
 )
 ```
 
-```{r Ex3-answer} 
+```{r Ex3-loop-a} 
 
 # For loop
 fits1 <- vector("list", length = length(formulas))
@@ -153,14 +153,14 @@ fits2 <- lapply(formulas, lm, data = mtcars)
 
 4. Fit the model mpg ~ disp to each of the bootstrap replicates of mtcars in the list below by using a for loop and lapply(). Can you do it without an anonymous function?
 
-```{r Ex4-question}
+```{r Ex4-fit-q}
 bootstraps <- lapply(1:10, function(x) {
   rows <- sample(1:nrow(mtcars), rep = TRUE)
   mtcars[rows, ]
 })
 ```
 
-```{r Ex4-answer}
+```{r Ex4-fit-a}
 # For loop
 mod1 <- vector("list", length = length(bootstraps))
 i <- 1
@@ -178,12 +178,12 @@ mod2 <- lapply(bootstraps, lm, formula = mpg ~ disp)
 
 5. For each model in the previous two exercises, extract R2 using the function below.
 
-```{r Ex5-questions}
+```{r Ex5-2funs-q}
 rsq <- function(mod) summary(mod)$r.squared
 ```
 
 
-```{r Ex5-answer}
+```{r Ex5-2funs-q}
 lapply(mod2, rsq)
 
 # extract R2 for all
@@ -209,6 +209,7 @@ Both produce atomic vectors as outputs but `sapply` assumes output and so is mor
 
 `vapply` is `lapply` with appropriate output (eg matrix) instead of a list.
 
+Use `sapply` when interactive exploring/investigation - it silently returns a list if the FUN outputs results of different lengths. Use `vapply` when including within functions as it throws an error if FUN results are different lengths.
 
 ## Multiple outputs: `Map` (and `mapply`)
 
@@ -236,6 +237,69 @@ Try and spot the for loop structures wthin any novel problems encountered, relat
 `parallel::mclapply` and `parallel::mcMap` are versions of `lapply` and `Map` that can use multiple cores. This is because each iteration with these functionals is independent of others, ie not order dependent.
 
 ### Exercises
+
+1. Use vapply() to:
+  a. Compute the standard deviation of every column in a numeric data frame.
+  b. Compute the standard deviation of every numeric column in a mixed data frame. (Hint: you’ll need to use vapply() twice.)
+
+```{r ex1-vapply}
+# with vapply we have to be explicit obout the output. Focus on FUN.VALUE argument, because all values of FUN must have same length and type.
+
+# 1a
+vapply(mtcars, sd, numeric(1))
+
+# 1b
+vapply(iris[vapply(iris, is.numeric, logical(1))], sd, numeric(1))
+```
+
+
+2. Why is using sapply() to get the class() of each element in a data frame dangerous?
+
+If an input has one class `sapply` will output a vector, but with inputs of multiple classes the output will be a list. This could be unexpected.
+Also, `sapply` returns an empty list when supplied with an empty list - not a logical vector. 
+
+
+3. The following code simulates the performance of a t-test for non-normal data. Use sapply() and an anonymous function to extract the p-value from every trial.
+
+```{r Ex3-sapply-test-q}
+trials <- replicate(
+  100, 
+  t.test(rpois(10, 10), rpois(7, 10)),
+  simplify = FALSE
+)
+trials[[1]]$p.value
+
+
+sapply(trials, function(x) x$p.value)
+```
+
+
+4. What does replicate() do? What sort of for loop does it eliminate? Why do its arguments differ from lapply() and friends?
+
+`replicate` repeatedly evaluates an expression. It eliminates for looping over an expression. It differs from `lapply` and other related functionals in that it takes no data and it repeated calls an expression `n` times.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
