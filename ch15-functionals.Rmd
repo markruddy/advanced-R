@@ -1,0 +1,321 @@
+---
+title: "Functionals"
+author: "Mark Ruddy"
+date: "5 March 2017"
+output: html_document
+---
+
+```{r load-packages, include=FALSE}
+library(tidyverse)
+```
+
+## Functionals introduction
+
+Working through HW's Advanced-R tutorial on functionals: http://adv-r.had.co.nz/Functionals.html 
+
+A functional:
+
+> A function that takes a function as an input and returns a vector as output.
+
+eg.,
+
+```{r functional-example}
+randomise <- function(f) f(runif(1e3))
+glimpse(randomise(sum))
+```
+
+`lapply()`, `apply()` and `tapply()` are the most frequently use functionals.
+
+Functionals are often used as alternatives to 'for loops'. 
+
+1. For loops have a reputation for beign slow (although not always).
+2. Using a functional is more expressive than relying on a for loop.
+  * Each functional tailored to a specific task: know immediately why it's being used.
+3. Eliminates having to write boilerplate for for-loop and so concentrate on function being applies.
+4. Functionals reduce bugs (well tested) and are efficient.
+5. Many functionals have been written in C with performance in mind (although not always).
+
+
+## lapply()
+
+See http://adv-r.had.co.nz/Functionals.html#lapply
+
+`lapply()` 
+
+1. Takes a function and a list.
+2. Creates container for output.
+3. Applies function to each element in the list.
+4. Returns results as a list.
+
+It's written in C, is the simplest functional, and is a building block for many other functionals.
+
+
+### Looping patterns
+
+There are three ways to loop over a vector.
+
+1. Over elements: `for (x in xs)`
+2. Over numeric indices: `for (x in seq_along(xs))`
+3. Over names: `for (nm in names(xs))`
+
+Usually 1 is a bad choice: saving output usually is by exending a data structure - eg extending a vector `res <- c(res, fun(x))`), which is inefficient. Extending a vector requires R to copy all existing elements, the add to it. Better to create the space needed for output first, then fill it.
+
+eg
+
+```{r index-for-loop-example}
+res <- numeric(length(xs))
+for (i in seq_along(xs)) {
+  res[i] <- sqrt(xs[i])
+}
+```
+
+### Using lapply()
+
+Three basic ways:
+
+1. With elements: `lapply(xs, function(x) {})`
+2. With indices: `lapply(seq_along(xs), function(i) {})`
+3. With names: `lapply(names(xs), function(nm) {})`
+
+In most cases use case 1 - `lapply()` sorts out the output. 
+
+If the position or name of the element is needed, use cases 2 or 3.
+
+## Exercises
+
+1. Why are the following two invocations of `lapply()` equivalent?
+
+```{r Ex1-lapply}
+trims <- c(0, 0.1, 0.2, 0.5)
+x <- rcauchy(100)
+
+#a
+lapply(trims, function(trim) mean(x, trim = trim))
+
+#b
+lapply(trims, mean, x = x)
+```
+
+The second parameter of `lapply` can take a name of a function found via `match.fun`. Thus `lapply(trims, 'mean', x = x)` also works, even though Hadley doesn't mention that.
+
+`lapply` will then automatically apply the function from the second parameter to the first parameter.  Though, by default it will assume the first argument to `lapply` will be the first argument to the function unless you specify otherwise in the third argument of `lapply`.
+
+Here, mean takes three args: x, trim, and na.rm.  `lapply(trims, mean)` would do `mean(trims)` or `mean(x = trims)`.  But by specifying that `x = x`, lapply then knows that the x value for mean will be the x variable, and then passes trims as the second argument to `mean`.
+
+(With reference to https://github.com/peterhurford/adv-r-book-solutions/blob/master/09_functionals/01_lapply/exercise1.r)
+
+
+2. The function below scales a vector so it falls in the range [0, 1]. How would you apply it to every column of a data frame? How would you apply it to every numeric column in a data frame?
+
+```{r Ex2-df-q}
+scale01 <- function(x) {
+  rng <- range(x, na.rm = TRUE)
+  (x - rng[1]) / (rng[2] - rng[1])
+}
+```
+
+
+```{r Ex2-df-ans}
+str(iris)
+names(iris)
+
+lapply(mtcars, scale01)
+# or with selection for numeric columns
+lapply(iris[sapply(iris, is.numeric)], scale01)
+```
+
+
+3. Use both for loops and lapply() to fit linear models to the mtcars using the formulas stored in this list:
+
+```{r Ex3-loop-q}
+formulas <- list(
+  mpg ~ disp,
+  mpg ~ I(1 / disp),
+  mpg ~ disp + wt,
+  mpg ~ I(1 / disp) + wt
+)
+```
+
+```{r Ex3-loop-a} 
+
+# For loop
+fits1 <- vector("list", length = length(formulas))
+i <- 1
+for (formula in formulas) { fits1[[i]] <- lm(formula, data = mtcars); i <- i + 1 }
+fits1
+
+# lapply
+fits2 <- lapply(formulas, lm, data = mtcars)
+
+```
+
+
+
+4. Fit the model mpg ~ disp to each of the bootstrap replicates of mtcars in the list below by using a for loop and lapply(). Can you do it without an anonymous function?
+
+```{r Ex4-fit-q}
+bootstraps <- lapply(1:10, function(x) {
+  rows <- sample(1:nrow(mtcars), rep = TRUE)
+  mtcars[rows, ]
+})
+```
+
+```{r Ex4-fit-a}
+# For loop
+mod1 <- vector("list", length = length(bootstraps))
+i <- 1
+for(boot in bootstraps) { 
+  result <- lm(mpg ~ disp, data = boot)
+  mod1[[i]] <- result
+  i <- i+1
+  }
+mod1
+
+# lapply
+mod2 <- lapply(bootstraps, lm, formula = mpg ~ disp)
+```
+
+
+5. For each model in the previous two exercises, extract R2 using the function below.
+
+```{r Ex5-2funs-q}
+rsq <- function(mod) summary(mod)$r.squared
+```
+
+
+```{r Ex5-2funs-q}
+lapply(mod2, rsq)
+
+# extract R2 for all
+all.fits <- list(fits1,fits2,mod1,mod2)
+all.r2 <- lapply(all.fits, function(fit) lapply(fit, rsq))
+```
+
+Clean up
+```{r}
+rm(list = ls())
+```
+
+
+## For loop functionals: friends of lapply()
+
+Common looping functions are *already implemented* in existing base functionals.
+
+### Vector output: `sapply` and `vapply`
+
+Both produce atomic vectors as outputs but `sapply` assumes output and so is more prone to errors of input is not as expected. `vapply` takes more arguments to control implementation and output.
+
+`sapply` is just `lapply` with the list converted to a vector.
+
+`vapply` is `lapply` with appropriate output (eg matrix) instead of a list.
+
+Use `sapply` when interactive exploring/investigation - it silently returns a list if the FUN outputs results of different lengths. Use `vapply` when including within functions as it throws an error if FUN results are different lengths.
+
+## Multiple outputs: `Map` (and `mapply`)
+
+These allow iteration over two lists at the same time, eg is calculating weighted means.
+
+`Map` takes a function as the first argument, cf `lapply` et al. 
+
+`Map` is the equivalent of `mapply` but with `simplify=FALSE`
+
+```{r test1}
+xs <- replicate(5, runif(10), simplify = FALSE)
+ws <- replicate(5, rpois(10, 5) + 1, simplify = FALSE)
+
+unlist(Map(weighted.mean, xs, ws))
+```
+
+## Bespoke functionals
+
+Try and spot the for loop structures wthin any novel problems encountered, relate them to existing functionals and make use these functionals in any new functions.
+
+
+## Parallelisation
+
+
+`parallel::mclapply` and `parallel::mcMap` are versions of `lapply` and `Map` that can use multiple cores. This is because each iteration with these functionals is independent of others, ie not order dependent.
+
+### Exercises
+
+1. Use vapply() to:
+  a. Compute the standard deviation of every column in a numeric data frame.
+  b. Compute the standard deviation of every numeric column in a mixed data frame. (Hint: you’ll need to use vapply() twice.)
+
+```{r ex1-vapply}
+# with vapply we have to be explicit obout the output. Focus on FUN.VALUE argument, because all values of FUN must have same length and type.
+
+# 1a
+vapply(mtcars, sd, numeric(1))
+
+# 1b
+vapply(iris[vapply(iris, is.numeric, logical(1))], sd, numeric(1))
+```
+
+
+2. Why is using sapply() to get the class() of each element in a data frame dangerous?
+
+If an input has one class `sapply` will output a vector, but with inputs of multiple classes the output will be a list. This could be unexpected.
+Also, `sapply` returns an empty list when supplied with an empty list - not a logical vector. 
+
+
+3. The following code simulates the performance of a t-test for non-normal data. Use sapply() and an anonymous function to extract the p-value from every trial.
+
+```{r Ex3-sapply-test-q}
+trials <- replicate(
+  100, 
+  t.test(rpois(10, 10), rpois(7, 10)),
+  simplify = FALSE
+)
+trials[[1]]$p.value
+
+
+sapply(trials, function(x) x$p.value)
+```
+
+
+4. What does replicate() do? What sort of for loop does it eliminate? Why do its arguments differ from lapply() and friends?
+
+`replicate` repeatedly evaluates an expression. It eliminates for looping over an expression. It differs from `lapply` and other related functionals in that it takes no data and it repeated calls an expression `n` times.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

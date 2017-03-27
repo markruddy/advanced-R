@@ -1,0 +1,494 @@
+---
+title: "Chapter 18: Model basics"
+output: html_notebook
+date: "2017-03-22"
+author: "Mark Ruddy" 
+---
+
+Working through Hadley Wickham's [Advanced R book](http://r4ds.had.co.nz/), section IV Model.
+
+
+
+```{r pakages, echo=FALSE}
+library(tidyverse)
+library(modelr)
+```
+
+## Introduction
+
+Goal to provide a low-dimensional summary of a dataset. Capture signal and ignoring noise.
+
+Focus here on predictive models, not data discovery models, and as models for *exploration*.
+
+Follow principles of data independence in hypothesis testing. Cannot use same observations for exploration as for confirmation.
+
+HW advocates 60:20:20 partition - training:query:test. *Query* set used to manually explore condidate models developed with testing set. Test set then used to test the chosen model.
+
+
+## Model basics
+
+> All models are wrong, but some are useful
+
+[George Box, 1978](https://en.wikipedia.org/wiki/All_models_are_wrong)
+
+
+```{r na-warn, echo=FALSE}
+options(na.action = na.warn) # Don't silently drop missing values
+```
+
+Simulated dataset being used.
+```{r plot-sim1}
+glimpse(sim1)
+
+ggplot(sim1, aes(x, y)) + 
+  geom_point()
+```
+
+Generate some random linear models to fit to sim1.
+```{r random-models}
+set.seed(49)
+
+models <- tibble(
+  a1 = runif(250,-20, 40), 
+  a2 = runif(250, -5, 5)
+  )
+
+ggplot(sim1, aes(x, y)) +
+  geom_abline(aes(intercept = a1, slope = a2), data = models, alpha = 0.25) +
+  #geom_smooth(method = lm, colour = "red") + # just to see what lm produces cf random models
+  geom_point()
+```
+
+### Model selection
+
+Choice of best model to fit can be made by minimising rmse (root mean squared error - square-root of the mean of the squared differences between actual and predicted values) between model *predictions* and *response* values from data.
+
+Select best models from randomly generated ones using rmse.
+```{r model-selection}
+## Find predictions from models
+model1 <- function(a, data) { # a is a vector or 2 values: intercept a[1] and slope a[2]; 
+                              # data is df of responses
+  a[1] + data$x * a[2]
+}
+
+## Find rmse
+measure_distance <- function(mod, data) {
+  diff <- data$y - model1(mod, data)
+  sqrt(mean(diff ^ 2))
+}
+
+## Calculate rmse for all models
+sim1_dist <- function(a1, a2) { ## Helper function to pass a1 and a2 from model to measure_distance
+  measure_distance(c(a1, a2), sim1)
+}
+
+models <- models %>% 
+  mutate(rmse = purrr::map2_dbl(a1, a2, sim1_dist))
+
+head(models)
+```
+
+Choose 10 best models based on rmse.
+```{r rmse-select}
+ggplot(sim1, aes(x, y)) +
+  geom_abline(
+    aes(intercept = a1, slope = a2, colour = -rmse), data = models %>% filter(rank(rmse) <= 10)
+  ) +
+  geom_point(size = 2, colour = "grey20")
+```
+
+
+Visualise models as data-points.
+
+```{r model-vis}
+## Plot intercept vs slope and distinguish points by rmse
+
+ggplot(models, aes(a1, a2)) +
+  geom_point(data = filter(models, rank(rmse) <= 10), size = 3, colour = "red") +
+  geom_point(aes(colour = -rmse))
+
+
+```
+
+### Numerical optimisation
+
+Refine approach to a grid search across parameter space. Even better to use a tool that minimises value used to determine quality of model (eg rmse). HW cites [Newton-Raphson](https://www.shodor.org/unchem-old/advanced/newton/index.html) search. This can be done with the R function `optim()`.
+
+
+```{r optim-model}
+best <- optim(c(0, 0), measure_distance, data = sim1)
+
+best$par
+
+ggplot(sim1, aes(x, y)) +
+  geom_point(size = 2, colour = "grey40") +
+  geom_abline(intercept = best$par[1], slope = best$par[2]) 
+```
+This approach of minimising distance between model and data is a generally applicable method of deriving the best model, of any family. But beware of local minima.
+
+### Linear model - lm
+
+In R `lm()` is a specific tool for fitting linear models, but doesn't use `optim()`. `lm()` is fast and finds a global minimum.
+
+```{r lm-model}
+sim1_mod <- lm(y ~ x, sim1)
+
+coef(sim1_mod)
+```
+
+### Exercises
+
+1. Explore sensitivity of linear models to effect of squared term in their derivation.
+```{r Ex1-lm-squ-term}
+sim1a <- tibble(
+  x = rep(1:10, each = 3),
+  y = x * 1.5 +6 + rt(length(x), df = 2)
+)
+
+str(sim1a)
+
+sim1a_mod <- lm(y ~ x, sim1a)
+coef(sim1a_mod)
+
+ggplot(sim1a, aes(x, y)) +
+  geom_point(size = 2, colour = "grey40") +
+  geom_abline(intercept = coef(sim1a_mod)[1], slope = coef(sim1a_mod)[2])
+```
+
+2. Use alternative distance measures to evaluate models. eg mean-absolute distance not rmse.
+
+```{r Ex2-mean-abs-dist}
+set.seed(49)
+
+models <- tibble(
+  a1 = runif(250,-20, 40), 
+  a2 = runif(250, -5, 5)
+  )
+
+measure_distance_mabs <- function(mod, data) {
+  diff <- data$y - model1(mod, data)
+  mean(abs(diff))
+}
+
+best_mabs <- optim(c(0, 0), measure_distance_mabs, data = sim1)
+
+ggplot(sim1, aes(x, y)) +
+  geom_point(size = 1, colour = "grey40") +
+  geom_abline(intercept = best_mabs$par[1], slope = best_mabs$par[2]) +
+  geom_abline(intercept = best$par[1], slope = best$par[2], colour = "blue", linetype = 2)
+```
+
+
+3. Local optima
+Numerical optimisation only guaranteed to find one local optimum. What's the problem with optimising a three parameter model?
+
+A: There's a possibility of the numerical optimiser becoming trapped at a local minimum, and is then unable to find the global minimum.
+
+Code effort...
+```{r Ex3-local-optima}
+sim3 <- tibble(
+  x = rep(1:10, each = 3),
+  y = runif(length(x)),
+  z = y * runif(length(x), min = 0.5, max = 1.5)
+)
+
+str(sim3)
+
+model3 <- function(a, data) {
+  a[1] + data$x * a[2] + a[3]
+}
+
+## ? the best distance measure to minimise on here... 
+## come back to this later...
+measure_distance_3 <- function(mod, data) {
+  diff <- data$y
+}
+
+```
+
+```{r}
+## Clean up 
+rm(list = ls())
+```
+
+
+## Visualising models
+
+### Predictions
+Look at `modelr` package for:
+
+`data_grid()`
+`add_predictions()`
+`add_residuals()`
+`geom_ref_line()`
+
+that help to access and visualise the residuals from a model. 
+
+Pay attention to distribution of residuals across the dataset, normaility, outliers.
+
+
+## Formulas and model families
+
+R uses a specific method to convert between formulas and functions. eg...
+
+y ~ x tranlates to y = a_1 + a_2 * x
+
+Use `modelr::model_matrix()` to view how a formula is translated into a matrix and en equation.
+
+```{r mod-matrix1}
+df <- tribble(
+  ~y, ~x1, ~x2,
+  4, 2, 5,
+  5, 1, 6
+)
+
+model_matrix(df, y ~ x1 * x2)
+```
+
+R adds the intercept is a column full of 1s. And uses the Wilkinson-Rogers model specification standard as formula notation:
+
+* + +X include this variable
+* - -X delete this variable
+* : X:Z include the interaction between these variables
+* ∗ X∗Y include these variables, main effects and the interactions between them
+* | X | Z conditioning: include x given z
+* ^ (X + Z + W)^3 include these variables and all interactions up to three way
+* I I(X∗Z) as is: include a new variable consisting of these variables multiplied
+* 1 X - 1 intercept: delete the intercept (regress through the orig
+
+(from http://faculty.chicagobooth.edu/richard.hahn/teaching/formulanotation.pdf)
+
+### Investigate model with difference interactions.
+
+#### Continuous and categorical
+
+The `sim3` data are continuous and categorical. 
+
+```{r sim3-plot}
+ggplot(sim3, aes(x1, y)) +
+      geom_point(aes(color = x2))
+```
+
+Different linear model approaches could be used here.
+
+```{r sim3-models}
+## Estimate main effects independently
+mod1 <- lm(y ~ x1 + x2, data = sim3)
+
+## Fit the interaction 
+mod2 <- lm(y ~ x1 * x2, data = sim3)
+```
+
+To visulise these two models, need to 
+
+1. Use `modelr::data_grid()` to get all combinations of the two predictor variables values x1 and x2
+2. Use `modelr::gather_predictions()` to add each prediction to a row (cf `spread_predictions()`)
+
+```{r sim3-model-vis}
+grid <- sim3 %>% 
+  data_grid(x1, x2) %>% 
+  gather_predictions(mod1, mod2)
+
+ggplot(sim3, aes(x1, y, color = x2)) + 
+  geom_point() +
+  geom_line(data = grid, aes(y = pred)) + 
+  facet_wrap(~ model)
+```
+
+Select between the two models qualitiatvely.
+
+```{r sim3-model-choice}
+sim3 <- sim3 %>% 
+  gather_residuals(mod1, mod2)
+
+ggplot(sim3, aes(x1, resid, colour = x2)) +
+  geom_point() + 
+  facet_grid(model ~ x2)
+```
+
+```{r cleanup2}
+## Clean up 
+rm(list=ls())
+```
+
+
+#### Two continuous variables
+
+Linear models of two continuous variables.
+
+```{r sim4-models}
+## Estimate main effects independently
+mod1 <- lm(y ~ x1 + x2, data = sim4)
+
+## Fit the interaction 
+mod2 <- lm(y ~ x1 * x2, data = sim4)
+```
+
+Get predictions. Note use of `modelr::seq_range()` to produce a grid of prediction values.
+```{r sim4-model-vis}
+## Get predictions across a grid
+grid <- sim4 %>% 
+  data_grid(
+    x1 = seq_range(x1, 5),
+    x2 = seq_range(x2, 5)
+    ) %>% 
+  gather_predictions(mod1, mod2)
+```
+
+Visualise predictions:x1,x2 as tile plot
+
+```{r sim4-tile}
+ggplot(grid, aes(x1, x2)) +
+  geom_tile(aes(fill = pred)) +
+  facet_wrap(~ model)
+```
+
+Visualise x1, x2 as contour lines against prediction values.
+
+
+
+```{r sim4-linex2}
+ggplot(grid, aes(x1, pred, colour = x2, group = x2)) +
+  geom_line() +
+  facet_grid(~model)
+```
+
+```{r sim4-linex1}
+ggplot(grid, aes(x2, pred, colour = x1, group = x1)) +
+  geom_line() +
+  facet_grid(~model)
+```
+
+
+There is an interaction between x1 and x2.
+
+### Exercises
+Exercise 1
+
+```{r Ex1-sim2-intercept}
+mod.sim2 <- lm(y ~ x, data = sim2)
+
+grid <- sim2 %>%
+      data_grid(x) %>%
+      add_predictions(mod.sim2)
+
+head(grid)
+
+ggplot(sim2, aes(x)) +
+    geom_point(aes(y = y)) +
+    geom_point(
+data = grid, aes(y = pred), color = "red", size=4
+)
+```
+```{r Ex1-sim2-no-intercept}
+mod.sim2 <- lm(y ~ x -1, data = sim2)
+
+grid <- sim2 %>%
+      data_grid(x) %>%
+      add_predictions(mod.sim2)
+
+head(grid)
+
+ggplot(sim2, aes(x)) +
+    geom_point(aes(y = y)) +
+    geom_point(
+data = grid, aes(y = pred), color = "red", size=4
+)
+```
+
+Exercise 2
+```{r sim3-explore}
+mod.sim3.1<-lm(y~x1+x2,data=sim3) 
+mod.sim3.2 <-lm(y~x1*x2,data=sim3)
+
+model_matrix(sim3, y ~ x1 + x2)
+model_matrix(sim3, y ~ x1 * x2)
+```
+```{r sim4-explore}
+# mod.sim4.1<-lm(y~x1+x2,data=sim4) 
+# mod.sim4.2 <-lm(y~x1*x2,data=sim4)
+
+model_matrix(sim4, y ~ x1 + x2)
+model_matrix(sim4, y ~ x1 * x2)
+```
+
+From looking at the model matrices, the * shorthand for an interaction is producing the product of the two variables involved in each interaction.
+
+
+Exercise 3
+Convert the following into functions:
+
+mod1<-lm(y~x1+x2,data=sim3) 
+
+mod2<-lm(y~x1*x2,data=sim3)
+
+```{r}
+str(sim3)
+```
+
+For mod1, x2 is a categorical variable. 
+
+Exercise 4
+```{r sim4-residuals}
+
+str(sim3)
+str(sim4)
+## Estimate main effects independently
+mod1 <- lm(y ~ x1 + x2, data = sim4)
+
+## Fit the interaction 
+mod2 <- lm(y ~ x1 * x2, data = sim4)
+
+## Get predictions across a grid
+grid <- sim4 %>% 
+  data_grid(x1, x2) %>% 
+  gather_predictions(mod1, mod2)
+
+sim4 <- sim4 %>% 
+  gather_residuals(mod1, mod2)
+```
+
+```{r sim4-x1-resids}
+ggplot(sim4, aes(x1, resid)) + 
+  geom_point() +
+  facet_grid(~ model)
+```
+
+```{r sim4-x2-resids}
+ggplot(sim4, aes(x2, resid)) + 
+  geom_point() +
+  facet_grid(~ model)
+
+```
+
+
+```{r}
+rm(list=ls())
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

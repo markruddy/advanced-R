@@ -1,0 +1,76 @@
+---
+title: "Chapter 20: Many models with purrr and broom"
+author: "Mark Ruddy"
+date: "24 March 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(modelr)
+options(na.action = na.warn) 
+```
+
+Approach from Chapter 19: Model building was using patterns then residual analysis to comment on models.
+
+Now build mutiple models and store them in list columns in data frames. Use the `broom` package to turn models into tidy data.
+
+
+```{r}
+library(gapminder)
+```
+
+
+```{r}
+str(gapminder)
+ggplot(gapminder, aes(year, lifeExp, group = country)) +
+  geom_line(alpha = 1/3)
+```
+
+
+```{r nz-model}
+nz <- filter(gapminder, country == "New Zealand")
+
+nz %>% 
+  ggplot(aes(year, lifeExp)) +
+  geom_line() +
+  ggtitle("Life expectancy since 1950 in New Zealand")
+```
+
+
+```{r nz-model-fit}
+nz.model <- lm(lifeExp ~ year, data = nz)
+str(summary(nz.model))
+
+nz %>% 
+  add_predictions(nz.model) %>% 
+  ggplot(aes(year, pred)) +
+  geom_line() +
+  ggtitle("New Zealand life expectancy model")
+```
+
+
+```{r nz-residuals}
+nz %>% 
+  add_residuals(nz.model) %>% 
+  ggplot(aes(year, resid)) + 
+  geom_hline(yintercept = 0, colour = "white", size = 3) +
+  geom_line() + 
+  ggtitle("New Zealand life expectancy model residuals")
+```
+
+Apply a model to multiple countries at once. Use `purrr` to nest the data, grouping by country and continent.
+```{r nest-by-country}
+## nest the gapminder 
+by.country <- nz %>% 
+  group_by(country, continent) %>% 
+  nest()
+
+```
+
+
+
+
+
+
+
